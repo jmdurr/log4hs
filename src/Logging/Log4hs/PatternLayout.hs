@@ -4,6 +4,7 @@ import           Control.Monad                  (void)
 import           Control.Monad.Trans.State.Lazy
 import           Data.Attoparsec.Text
 import           Data.Char                      (isControl)
+import           Data.List                      (intercalate)
 import           Data.Maybe                     (fromMaybe, isJust)
 import qualified Data.Text                      as T
 import           Data.Text.Lazy                 (toStrict)
@@ -37,7 +38,7 @@ data PatternData m = PatternData { msg           :: T.Text
                                  , msgArgs       :: [(T.Text,T.Text)]
                                  , msgTimer      :: m UTCTime
                                  , msgLevel      :: LogLevel
-                                 , msgLoggerName :: [T.Text]
+                                 , msgLoggerName :: [String]
                                  , msgProcessId  :: m Int
                                  , msgThreadId   :: m ThreadId
 }
@@ -198,12 +199,12 @@ patternP = do
 expandPattern :: Monad m => [PatternSegment] -> Int -> PatternData m -> m TB.Builder
 expandPattern [] _ _ = return $ TB.fromString ""
 expandPattern _ 0 _  = return $ TB.fromString ""
-expandPattern (PatternSegmentFlag (LoggerName i) : ps) len pdata = mappend (TB.fromText t) <$> expandPattern ps (len - T.length t) pdata
+expandPattern (PatternSegmentFlag (LoggerName i) : ps) len pdata = mappend (TB.fromString t) <$> expandPattern ps (len - length t) pdata
     where
         dr | i < 0 = Prelude.drop (abs i)
            | i > length (msgLoggerName pdata) = id
            | otherwise = Prelude.drop (length (msgLoggerName pdata) - i)
-        t = T.take len $ T.intercalate (T.pack ".") $ dr (msgLoggerName pdata)
+        t = Prelude.take len $ intercalate "." $ dr (msgLoggerName pdata)
 
 expandPattern (PatternSegmentFlag (Date s) : ps) len pdata = do
         tm <- msgTimer pdata
@@ -292,7 +293,5 @@ patternLayout ::  Logger m => T.Text -> m (Either String (Layout m))
 patternLayout ptrn =
     case parseOnly patternP ptrn of
         Left e -> return $ Left ("Could not parse patternlayout: " ++ e)
-        Right (Pattern ps) ->  do
-            nm <- loggerName
-            return $ Right $ \lvl msg' args ->
+        Right (Pattern ps) ->  return $ Right $ \nm lvl msg' args ->
                 toStrict . TB.toLazyText <$> expandPattern ps maxBound PatternData{msgLoggerName=nm,msgLevel=lvl,msg=msg',msgArgs=args,msgTimer=loggerTime,msgProcessId=loggerProcessId,msgThreadId=loggerThreadId}

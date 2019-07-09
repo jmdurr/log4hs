@@ -25,6 +25,8 @@ dependencies:
 - attoparsec
 - time
 - transformers
+- template-haskell
+- split
 
 library:
   source-dirs: src

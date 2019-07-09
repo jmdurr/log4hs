@@ -1,7 +1,9 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Logging.Log4hs.PatternLayoutSpec (spec) where
 
 import           Data.Either
 import qualified Data.Text                    as T
+import           Logging.Log4hs.ModuleNamer
 import           Logging.Log4hs.PatternLayout
 import           Logging.Log4hs.TestLogger
 import           Logging.Log4hs.Types
@@ -9,9 +11,11 @@ import           Test.Hspec
 
 -- type Layout m = LogLevel -> Text -> [(Text,Text)] -> m Text
 
+logname = ["Logging","Log4hs","TestLogger"]
+
 runLayout :: Monad m => Either String (Layout m) -> LogLevel -> T.Text -> [(T.Text,T.Text)] -> m T.Text
 runLayout (Left e) _ _ _         = return $ T.pack e
-runLayout (Right l) lvl msg args = l lvl msg args
+runLayout (Right l) lvl msg args = l logname lvl msg args
 
 plainTextLog :: String -> String -> IO ()
 plainTextLog pat mat = do
@@ -43,6 +47,9 @@ spec = do
         it "should output log level" $ plainTextLog "%p - msg" "DEBUG - msg"
         it "should transform log level" $ plainTextLog "%p{DEBUG=*} - msg" "* - msg"
         it "should add kv" $ fullLog "Hello %K{place}" "msg" [("place","world"),("other","key")] "Hello world"
+        it "should test logging module name" $ do
+            $logError (T.pack "an error msg") []
+            1 `shouldBe` 1
 
 
 

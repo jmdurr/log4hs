@@ -8,16 +8,14 @@ import           Test.Hspec.Core.Spec
 
 instance Logger (SpecM a) where
     loggerLevel = return TRACE
-    loggerName = return [T.pack "Logging",T.pack "Log4hs", T.pack "TestLogger"]
-    log = runIO . print
+    log nm lvl txt args = runIO $ print nm
     loggerTime = return $ read "2019-07-09 15:21:06.366055272 UTC"
     loggerProcessId = return 1234
     loggerThreadId = runIO myThreadId
 
 instance Logger IO where
     loggerLevel = return TRACE
-    loggerName = return [T.pack "Logging",T.pack "Log4hs", T.pack "TestLogger"]
-    log = print
+    log nm lvl txt args = print nm
     loggerTime = return $ read "2019-07-09 15:21:06.366055272 UTC"
     loggerProcessId = return 1234
     loggerThreadId = myThreadId
