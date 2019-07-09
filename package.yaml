@@ -29,17 +29,6 @@ dependencies:
 library:
   source-dirs: src
 
-executables:
-  log4h-exe:
-    main:                Main.hs
-    source-dirs:         app
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - log4hs
-
 tests:
   log4h-test:
     main:                Spec.hs
