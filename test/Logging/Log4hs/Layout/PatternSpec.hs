@@ -1,32 +1,28 @@
-{-# LANGUAGE TemplateHaskell #-}
-module Logging.Log4hs.PatternLayoutSpec (spec) where
+module Logging.Log4hs.Layout.PatternSpec (spec) where
 
+import           Control.Monad.IO.Class
 import           Data.Either
-import qualified Data.Text                    as T
-import           Logging.Log4hs.ModuleNamer
-import           Logging.Log4hs.PatternLayout
+import qualified Data.Text                     as T
+import           Logging.Log4hs
+import           Logging.Log4hs.Layout.Pattern
 import           Logging.Log4hs.TestLogger
-import           Logging.Log4hs.Types
+import           Logging.Log4hs.TH.Log4hs
 import           Test.Hspec
-
--- type Layout m = LogLevel -> Text -> [(Text,Text)] -> m Text
 
 logname = ["Logging","Log4hs","TestLogger"]
 
-runLayout :: Monad m => Either String (Layout m) -> LogLevel -> T.Text -> [(T.Text,T.Text)] -> m T.Text
-runLayout (Left e) _ _ _         = return $ T.pack e
-runLayout (Right l) lvl msg args = l logname lvl msg args
+runLayout :: Layout IO -> LogLevel -> T.Text -> [(T.Text,T.Text)] -> Logger IO T.Text
+runLayout l  = l logname
+--type Layout m = [String] -> LogLevel -> Text -> [(Text,Text)] -> Logger m Text
 
 plainTextLog :: String -> String -> IO ()
 plainTextLog pat mat = do
-    l <- patternLayout (T.pack pat)
-    r <- runLayout l DEBUG (T.pack "some text") []
+    r <- withLogging testContext $ runLayout (patternLayout (T.pack pat)) DEBUG (T.pack "some text") []
     r `shouldBe` T.pack mat
 
 fullLog :: String -> String -> [(String,String)] -> String -> IO ()
 fullLog pat msg args mat = do
-    l <- patternLayout (T.pack pat)
-    r <- runLayout l DEBUG (T.pack msg) $ map (\(k,v) -> (T.pack k, T.pack v)) args
+    r <- withLogging testContext $ runLayout (patternLayout (T.pack pat)) DEBUG (T.pack msg) $ map (\(k,v) -> (T.pack k, T.pack v)) args
     r `shouldBe` T.pack mat
 
 
@@ -47,9 +43,7 @@ spec = do
         it "should output log level" $ plainTextLog "%p - msg" "DEBUG - msg"
         it "should transform log level" $ plainTextLog "%p{DEBUG=*} - msg" "* - msg"
         it "should add kv" $ fullLog "Hello %K{place}" "msg" [("place","world"),("other","key")] "Hello world"
-        it "should test logging module name" $ do
-            $logError (T.pack "an error msg") []
-            1 `shouldBe` 1
+
 
 
 

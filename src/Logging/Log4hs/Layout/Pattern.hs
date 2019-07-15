@@ -1,6 +1,8 @@
-module Logging.Log4hs.PatternLayout (patternLayout) where
+module Logging.Log4hs.Layout.Pattern (patternLayout) where
 import           Control.Concurrent             (ThreadId)
 import           Control.Monad                  (void)
+import           Control.Monad.Trans.Class      (lift)
+import           Control.Monad.Trans.Reader     (asks)
 import           Control.Monad.Trans.State.Lazy
 import           Data.Attoparsec.Text
 import           Data.Char                      (isControl)
@@ -43,6 +45,9 @@ data PatternData m = PatternData { msg           :: T.Text
                                  , msgThreadId   :: m ThreadId
 }
 
+maxPatternOut :: Int
+maxPatternOut = 100 * 1024 * 1024
+
 matchBraces :: Int -> Parser T.Text
 matchBraces i = do
     t <- takeTill (== '}')
@@ -75,7 +80,7 @@ loggerNameOpt :: Parser PatternFlag
 loggerNameOpt = do
     choice [void $ char 'c', void $ string (T.pack "logger")]
     o <- opt $ signed decimal
-    return $ LoggerName (fromMaybe maxBound o)
+    return $ LoggerName (fromMaybe maxPatternOut o)
 
 
 date :: Parser PatternFlag
@@ -116,20 +121,22 @@ logLevel = choice [ERROR <$ string (T.pack "ERROR")
 spaces :: Parser ()
 spaces = void $ many' space
 
-highlightStyle :: Parser [(LogLevel,HighlightColor)]
-highlightStyle = do
+nvPair :: Parser n -> Parser v -> Parser [(n,v)]
+nvPair pn pv = do
     spaces
-    l <- logLevel
+    n <- pn
     spaces
     char '='
     spaces
-    c <- color
+    v <- pv
     spaces
-    rs <- option Nothing (char ',' >> (Just <$> highlightStyle))
+    rs <- option Nothing (char ',' >> (Just <$> nvPair pn pv))
     return $ case rs of
-        Nothing  -> [(l,c)]
-        Just rs' -> (l,c):rs'
+        Nothing  -> [(n,v)]
+        Just rs' -> (n,v):rs'
 
+highlightStyle :: Parser [(LogLevel,HighlightColor)]
+highlightStyle = nvPair logLevel color
 
 highlight :: Parser PatternFlag
 highlight = do
@@ -152,16 +159,7 @@ pid :: Parser PatternFlag
 pid = Pid <$ choice [string (T.pack "pid"), string (T.pack "processId")]
 
 levelAliases :: Parser [(LogLevel,String)]
-levelAliases = do
-        spaces
-        l <- logLevel
-        spaces
-        char '='
-        spaces
-        s <- takeWhile1 (\c -> c /= ' ' && c /= ',' && c /= '}')
-        spaces
-        return (l,T.unpack s)
-    `sepBy` char ','
+levelAliases = nvPair logLevel (T.unpack <$> takeWhile1 (\c -> c /= ' ' && c /= ',' && c /= '}'))
 
 level :: Parser PatternFlag
 level = do
@@ -289,9 +287,14 @@ expandPattern (PatternSegmentFlag (KeyLookup k) : ps) len pdata =
     mappend (TB.fromText kv) <$> expandPattern ps (len - T.length kv) pdata
     where kv = T.take len $ fromMaybe (T.pack "NoKey") $ lookup (T.pack k) (msgArgs pdata)
 
-patternLayout ::  Logger m => T.Text -> m (Either String (Layout m))
+patternLayout ::  Monad m => T.Text -> Layout m
 patternLayout ptrn =
     case parseOnly patternP ptrn of
-        Left e -> return $ Left ("Could not parse patternlayout: " ++ e)
-        Right (Pattern ps) ->  return $ Right $ \nm lvl msg' args ->
-                toStrict . TB.toLazyText <$> expandPattern ps maxBound PatternData{msgLoggerName=nm,msgLevel=lvl,msg=msg',msgArgs=args,msgTimer=loggerTime,msgProcessId=loggerProcessId,msgThreadId=loggerThreadId}
+        Left e -> \nm lvl msg' args -> return $ T.pack "pattern layout parse failure: " <> T.pack e
+        Right (Pattern ps) -> \nm lvl msg' args ->
+                toStrict . TB.toLazyText <$> do
+                    lt <- asks ctxTime
+                    lp <- asks ctxProcessId
+                    ltid <- asks ctxThreadId
+                    lift $ expandPattern ps maxPatternOut PatternData{msgLoggerName=nm,msgLevel=lvl,msg=msg',msgArgs=args,msgTimer=lt,msgProcessId=lp,msgThreadId=ltid}
+

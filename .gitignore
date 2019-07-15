@@ -3,3 +3,4 @@ log4h.cabal
 *~
 .vscode/
 log4hs.cabal
+dist/

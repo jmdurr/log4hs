@@ -27,9 +27,38 @@ dependencies:
 - transformers
 - template-haskell
 - split
+- stm
+- stm-chans
+- mtl
+- directory
+- filepath
+- zlib
+- bytestring
+
+when:
+- condition: os(windows)
+  then:
+    dependencies:
+    - Win32
+  else:
+    dependencies:
+    - unix
 
 library:
-  source-dirs: src
+  source-dirs: src/
+  when:
+  - condition: 'os(windows)'
+    then:
+      source-dirs: windows/
+    else:
+      source-dirs: unix/
+  exposed-modules:
+    - Logging.Log4hs
+    - Logging.Log4hs.Appender.Console
+    - Logging.Log4hs.Appender.Async
+    - Logging.Log4hs.Layout.Pattern
+    - Logging.Log4hs.TH.Log4hs
+    - System.Process
 
 tests:
   log4h-test:
