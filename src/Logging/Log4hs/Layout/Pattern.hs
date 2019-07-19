@@ -287,14 +287,11 @@ expandPattern (PatternSegmentFlag (KeyLookup k) : ps) len pdata =
     mappend (TB.fromText kv) <$> expandPattern ps (len - T.length kv) pdata
     where kv = T.take len $ fromMaybe (T.pack "NoKey") $ lookup (T.pack k) (msgArgs pdata)
 
-patternLayout ::  Monad m => T.Text -> Layout m
+patternLayout :: LogVarProvider n => T.Text -> Layout n
 patternLayout ptrn =
     case parseOnly patternP ptrn of
         Left e -> \nm lvl msg' args -> return $ T.pack "pattern layout parse failure: " <> T.pack e
         Right (Pattern ps) -> \nm lvl msg' args ->
-                toStrict . TB.toLazyText <$> do
-                    lt <- asks ctxTime
-                    lp <- asks ctxProcessId
-                    ltid <- asks ctxThreadId
-                    lift $ expandPattern ps maxPatternOut PatternData{msgLoggerName=nm,msgLevel=lvl,msg=msg',msgArgs=args,msgTimer=lt,msgProcessId=lp,msgThreadId=ltid}
+                toStrict . TB.toLazyText <$>
+                    expandPattern ps maxPatternOut PatternData{msgLoggerName=nm,msgLevel=lvl,msg=msg',msgArgs=args,msgTimer=provideTime,msgProcessId=provideProcessId,msgThreadId=provideThreadId}
 

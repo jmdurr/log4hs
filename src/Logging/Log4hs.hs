@@ -18,8 +18,8 @@ defLoggerConfig = LogConfig { configLevel = WARN
                             , configChildren = []
                             , configName = ""}
 
-defLoggerCtx :: MonadIO m => LogContext m
-defLoggerCtx = LogContext { ctxAppenders = [consoleAppender "console" SYSTEM_OUT (patternLayout (pack "%maxLen{%d{%T%Q}}{13} [%T] %level %logger{36} - %msg%n"))]
+defLoggerCtx :: (MonadIO m, LogVarProvider m) => LogContext m
+defLoggerCtx = LogContext { ctxAppenders = [("console",consoleAppender SYSTEM_OUT (patternLayout (pack "%maxLen{%d{%T%Q}}{13} [%T] %level %logger{36} - %msg%n")))]
                           , ctxConfigs = defLoggerConfig
                           , ctxTime = liftIO getCurrentTime
                           , ctxProcessId = liftIO getProcessId
@@ -27,16 +27,18 @@ defLoggerCtx = LogContext { ctxAppenders = [consoleAppender "console" SYSTEM_OUT
                           }
 
 
-withLogging :: Monad m => LogContext m -> Logger m a -> m a
-withLogging ctx f = runReaderT f ctx
+withLogging :: HasLog m n => LogContext n -> (m n) a -> n a
+withLogging ctx f = do
+  apps <- mapM (\(n,am) -> am >>= \a -> return (n,a)) $ ctxAppenders ctx
+  withLog LogState{context=ctx,appenders=apps} f
 
-getAppenders :: Monad m => LogContext m -> LogConfig -> [LogAppender m]
-getAppenders ctx cfg = mapMaybe (`lookup` map (\(n,a,_) -> (n,a)) (ctxAppenders ctx)) (configAppenders cfg)
+getAppenders :: LogVarProvider n => [(String,(LogAppender n, LogAppenderFinish n))] -> LogConfig -> [LogAppender n]
+getAppenders apps cfg = mapMaybe (`lookup` map (\(n,(a,_)) -> (n,a)) apps) (configAppenders cfg)
 
-getConfig :: Monad m => [String] -> Logger m LogConfig
-getConfig [] = reader ctxConfigs
+getConfig :: HasLog m n => [String] -> (m n) LogConfig
+getConfig [] = ctxConfigs . context <$> logState
 getConfig nm = do
-    ctx <- ask
+    ctx <- context <$> logState
     case asum (map (findConfig nm) (configChildren $ ctxConfigs ctx)) of
         Nothing -> return $ ctxConfigs ctx
         Just c  -> return c
@@ -49,10 +51,10 @@ getConfig nm = do
             | otherwise = Nothing
 
 
-logMsg :: Monad m => [String] -> LogLevel -> Text -> [(Text,Text)] -> Logger m ()
+logMsg :: HasLog m n => [String] -> LogLevel -> Text -> [(Text,Text)] -> (m n) ()
 logMsg nm lvl msg args = do
     c <- getConfig nm
-    a <- asks (`getAppenders` c)
+    a <- flip getAppenders c . appenders <$> logState
     case (configLevel c, lvl) of
         (ERROR,ERROR) -> dolog a
         (WARN,ERROR)  -> dolog a
@@ -66,6 +68,6 @@ logMsg nm lvl msg args = do
         (DEBUG,DEBUG) -> dolog a
         (TRACE,_)     -> dolog a
         (_,_)         -> return ()
-    where dolog = mapM_ (\a -> a nm lvl msg args)
+    where dolog app = lift $ mapM_ (\a -> a nm lvl msg args) app
 
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Logging.Log4hs.Appender.Async (asyncAppender) where
 import           Control.Concurrent            (forkIO, killThread, myThreadId)
 import           Control.Concurrent.STM        (atomically)
@@ -12,24 +13,28 @@ import           Logging.Log4hs
 import           System.Process
 
 
-childLogger :: [(String,LogAppender IO,LogAppenderFinish IO)] -> TBChan ([String],LogLevel,Text,[(Text,Text)]) -> IO ()
-childLogger chld c = untilKilled $ withLogging ctx $ forever $ do
+childLogger :: [(String, (LogAppender IO,LogAppenderFinish IO))] -> TBChan ([String],LogLevel,Text,[(Text,Text)]) -> IO ()
+childLogger chld c = untilKilled $ withLogging' ctx $ forever $ do
         (nm,lvl,msg,args) <- liftIO $ atomically $ readTBChan c
-        mapM_ (\(_,app,_) -> app nm lvl msg args) (ctxAppenders ctx)
-    where ctx = LogContext {ctxAppenders = chld
-                                              ,ctxConfigs = LogConfig {configLevel = TRACE
-                                                                      ,configAppenders=map (\(n,_,_) -> n) chld
-                                                                      ,configChildren=[]
-                                                                      ,configName=""
-                                                                      }
-                                              ,ctxTime = getCurrentTime
-                                              ,ctxProcessId = getProcessId
-                                              ,ctxThreadId = myThreadId
-                                              }
-          untilKilled m = onException m (mapM_ (\(_,_,f) -> f) chld)
+        logMsg nm lvl msg args
+        :: IO ()
+    where ctx = LogContext {ctxAppenders = map (\(n,a) -> (n,return a)) chld
+                           ,ctxConfigs = LogConfig {configLevel = TRACE
+                                                   ,configAppenders=map fst chld
+                                                   ,configChildren=[]
+                                                   ,configName=""
+                                                   }
+                           ,ctxTime = getCurrentTime
+                           ,ctxProcessId = getProcessId
+                           ,ctxThreadId = myThreadId
+                           }
+          untilKilled m = onException m (mapM_ (\(_,(_,f)) -> f) chld)
+          withLogging' :: LogContext IO -> LoggerT IO a -> IO a
+          withLogging' = withLogging
 
-asyncAppender :: MonadIO m => String -> [(String,LogAppender IO,LogAppenderFinish IO)] -> Int -> m (String,LogAppender m,LogAppenderFinish m)
-asyncAppender nm chld qsz = do
+asyncAppender :: MonadIO m => [(String,m (LogAppender IO,LogAppenderFinish IO))] -> Int -> m (LogAppender m,LogAppenderFinish m)
+asyncAppender chld qsz = do
     tc <- liftIO $ newTBChanIO qsz -- chan of (IO ())
-    tid <- liftIO $ forkIO $ childLogger chld tc
-    return (nm, \m lvl msg args -> liftIO $ atomically $ writeTBChan tc (m,lvl,msg,args),liftIO $ killThread tid)
+    apps <- mapM (\(n,appm) -> appm >>= \appm' -> return (n,appm')) chld
+    tid <- liftIO $ forkIO $ childLogger apps tc
+    return (\m lvl msg args -> liftIO $ atomically $ writeTBChan tc (m,lvl,msg,args),liftIO $ killThread tid)

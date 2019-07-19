@@ -1,4 +1,4 @@
-module Logging.Log4hs.Appender.RollingFile (rollingFileAppender) where
+module Logging.Log4hs.Appender.RollingFile (rollingFileAppender,sizeBasedTriggeringPolicy,timeBasedTriggeringPolicy) where
 
 import           Codec.Compression.GZip  (compress)
 import           Control.Concurrent      (forkIO, threadDelay)
@@ -23,14 +23,14 @@ import           System.FilePath         (FilePath, dropExtension,
 import           System.IO
 
 
-rollingFileAppender :: MonadIO m => String -> Bool -> Bool -> FilePath -> String -> Bool -> Layout m -> [(TriggeringPolicy,TriggeringPolicyReset)] -> m (String,LogAppender m,LogAppenderFinish m)
-rollingFileAppender nm append buffer file fp flush layout policies = do
+rollingFileAppender :: MonadIO m => Bool -> Bool -> FilePath -> String -> Bool -> Layout m -> [m (TriggeringPolicy,TriggeringPolicyReset)] -> m (LogAppender m,LogAppenderFinish m)
+rollingFileAppender append buffer file fp flush layout policiesM = do
   liftIO $ createDirectoryIfMissing True (takeDirectory file)
+  policies <- sequence policiesM
   let md = if append then AppendMode else WriteMode in do
     h <- liftIO $ openFile file md
     ioh <- liftIO $ newMVar (h,1)
-    return (nm
-          ,\m lvl msg args -> do
+    return (\m lvl msg args -> do
               t <- layout m lvl msg args
               r <- liftIO $ or <$> mapM (\(p,_) -> p t) policies
               when r $ liftIO $ modifyMVar_ ioh $ \(h',i) -> do
@@ -81,8 +81,8 @@ timeBasedTriggeringPolicy intervalS = do
       )
 
 
-sizeBasedTriggeringPolicy :: MonadIO m => FilePath -> Int -> m (TriggeringPolicy,TriggeringPolicyReset)
-sizeBasedTriggeringPolicy file maxChars = do
+sizeBasedTriggeringPolicy :: MonadIO m => Int -> FilePath -> m (TriggeringPolicy,TriggeringPolicyReset)
+sizeBasedTriggeringPolicy maxChars file = do
   szref <- liftIO (withFile file ReadMode hFileSize >>= newIORef)
   return
     (\t -> do

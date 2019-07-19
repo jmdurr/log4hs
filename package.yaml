@@ -58,6 +58,8 @@ library:
     - Logging.Log4hs.Appender.Async
     - Logging.Log4hs.Layout.Pattern
     - Logging.Log4hs.TH.Log4hs
+    - Logging.Log4hs.Appender.RollingFile
+    - Logging.Log4hs.Appender.File
     - System.Process
 
 tests:
