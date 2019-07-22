@@ -1,9 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Logging.Log4hs.TH.Log4hs (logError,logWarn,logInfo,logDebug,logTrace) where
-import           Data.List.Split            (splitOn)
-import qualified Data.Text                  as T
+import           Data.List.Split     (splitOn)
 import           Language.Haskell.TH
-import           Language.Haskell.TH.Syntax
 import           Logging.Log4hs
 
 modName :: Q [String]

@@ -1,20 +1,17 @@
 module Logging.Log4hs.Layout.Pattern (patternLayout) where
-import           Control.Concurrent             (ThreadId)
-import           Control.Monad                  (void)
-import           Control.Monad.Trans.Class      (lift)
-import           Control.Monad.Trans.Reader     (asks)
-import           Control.Monad.Trans.State.Lazy
+import           Control.Concurrent     (ThreadId)
+import           Control.Monad          (void)
 import           Data.Attoparsec.Text
-import           Data.Char                      (isControl)
-import           Data.List                      (intercalate)
-import           Data.Maybe                     (fromMaybe, isJust)
-import qualified Data.Text                      as T
-import           Data.Text.Lazy                 (toStrict)
-import qualified Data.Text.Lazy.Builder         as TB
-import           Data.Time.Clock                (UTCTime)
-import           Data.Time.Format               (defaultTimeLocale, formatTime)
+import           Data.Char              (isControl)
+import           Data.List              (intercalate)
+import           Data.Maybe             (fromMaybe, isJust)
+import qualified Data.Text              as T
+import           Data.Text.Lazy         (toStrict)
+import qualified Data.Text.Lazy.Builder as TB
+import           Data.Time.Clock        (UTCTime)
+import           Data.Time.Format       (defaultTimeLocale, formatTime)
 import           Logging.Log4hs.Types
-import           Text.Printf                    (printf)
+import           Text.Printf            (printf)
 
 data EncodeType = JSON | CRLF
 
@@ -54,7 +51,7 @@ matchBraces i = do
     let l = T.length (T.filter (== '{') t) in
         if i + l > 0
             then do
-                char '}'
+                void $ char '}'
                 r <- matchBraces (i + l - 1)
                 return $ t <> T.singleton '}' <> r
             else
@@ -62,12 +59,12 @@ matchBraces i = do
 
 between :: Char -> Char -> Parser a -> Parser a
 between s e p = do
-    char s
+    void $ char s
     t <- matchBraces 0
     case parseOnly p t of
-        Left e -> fail e
+        Left er -> fail er
         Right t' -> do
-            char e
+            void $ char e
             return t'
 
 opt :: Parser a -> Parser (Maybe a)
@@ -96,7 +93,7 @@ encodeType = choice [string (T.pack "CRLF") >> return CRLF, string (T.pack "JSON
 
 encode :: Parser PatternFlag
 encode = do
-    choice [string (T.pack "encode"), string (T.pack "enc")]
+    void $ choice [string (T.pack "encode"), string (T.pack "enc")]
     Encode . fromMaybe CRLF <$> opt encodeType <*> requiredOpt patternP
 
 color :: Parser HighlightColor
@@ -126,7 +123,7 @@ nvPair pn pv = do
     spaces
     n <- pn
     spaces
-    char '='
+    void $ char '='
     spaces
     v <- pv
     spaces
@@ -140,14 +137,14 @@ highlightStyle = nvPair logLevel color
 
 highlight :: Parser PatternFlag
 highlight = do
-    string (T.pack "highlight")
+    void $ string (T.pack "highlight")
     p <- requiredOpt patternP
     s <- requiredOpt highlightStyle
     return $ Highlight p s
 
 maxLength :: Parser PatternFlag
 maxLength = do
-    choice [string (T.pack "maxLength"), string (T.pack "maxLen")]
+    void $ choice [string (T.pack "maxLength"), string (T.pack "maxLen")]
     p <- requiredOpt patternP
     i <- requiredOpt decimal
     return $ MaxLength p i
@@ -175,17 +172,17 @@ percent = Percent <$ char '%'
 
 message :: Parser PatternFlag
 message = do
-    choice [string (T.pack "message"), string (T.pack "msg"), string (T.pack "m")]
+    void $ choice [string (T.pack "message"), string (T.pack "msg"), string (T.pack "m")]
     Message . isJust <$> opt (string (T.pack "nolookups"))
 
 keylookup :: Parser PatternFlag
 keylookup = do
-    choice [void $ char 'K', void $ string (T.pack "map"), void $ string (T.pack "MAP")]
+    void $ choice [void $ char 'K', void $ string (T.pack "map"), void $ string (T.pack "MAP")]
     k <- requiredOpt $ many1 anyChar
     return $ KeyLookup k
 
 pctFlag :: Parser PatternFlag
-pctFlag = char '%' >> choice [highlight,percent,threadId,pid,maxLength,message,encode,level,date,loggerNameOpt,newline, keylookup]
+pctFlag = void (char '%') >> choice [highlight,percent,threadId,pid,maxLength,message,encode,level,date,loggerNameOpt,newline, keylookup]
 
 patternP :: Parser Pattern -- named patternP to avoid hlint pattern parse error
 patternP = do
@@ -259,9 +256,9 @@ expandPattern (PatternSegmentFlag Newline : ps) len pdata
     | otherwise = return $ TB.fromString ""
 
 expandPattern (PatternSegmentFlag Pid : ps) len pdata = do
-    pd <- pid
+    pd <- pid'
     mappend (TB.fromText (T.take len pd)) <$> expandPattern ps (len - T.length pd) pdata
-    where pid = T.pack . show <$> msgProcessId pdata
+    where pid' = T.pack . show <$> msgProcessId pdata
 
 expandPattern (PatternSegmentFlag (Level lvls) : ps) len pdata = mappend (TB.fromString lvlstr) <$> expandPattern ps (len - length lvlstr) pdata
     where lvlstr = Prelude.take len $ fromMaybe (show (msgLevel pdata)) $ lookup (msgLevel pdata) lvls
@@ -275,7 +272,7 @@ expandPattern (PatternSegmentFlag Percent : ps) len pdata
     | otherwise = return $ TB.fromString ""
 
 
-expandPattern (PatternSegmentFlag (Message b) : ps) len pdata =
+expandPattern (PatternSegmentFlag (Message _) : ps) len pdata =
     mappend (TB.fromText msgT) <$> expandPattern ps (len - T.length msgT) pdata
     where msgT = T.take len (msg pdata)
 
@@ -290,7 +287,7 @@ expandPattern (PatternSegmentFlag (KeyLookup k) : ps) len pdata =
 patternLayout :: LogVarProvider n => T.Text -> Layout n
 patternLayout ptrn =
     case parseOnly patternP ptrn of
-        Left e -> \nm lvl msg' args -> return $ T.pack "pattern layout parse failure: " <> T.pack e
+        Left e -> \_ _ _ _ -> return $ T.pack "pattern layout parse failure: " <> T.pack e
         Right (Pattern ps) -> \nm lvl msg' args ->
                 toStrict . TB.toLazyText <$>
                     expandPattern ps maxPatternOut PatternData{msgLoggerName=nm,msgLevel=lvl,msg=msg',msgArgs=args,msgTimer=provideTime,msgProcessId=provideProcessId,msgThreadId=provideThreadId}

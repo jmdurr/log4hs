@@ -1,19 +1,15 @@
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
+{-# LANGUAGE MultiParamTypeClasses  #-}
 
 module Logging.Log4hs.Types where
-import           Control.Applicative       ((<|>))
 import           Control.Concurrent        (ThreadId, myThreadId)
 import           Control.Monad.IO.Class    (MonadIO, liftIO)
 import           Control.Monad.Reader
 import           Control.Monad.Trans.Class (MonadTrans, lift)
-import           Data.Foldable             (asum)
-import           Data.Maybe                (mapMaybe)
-import           Data.Text                 (Text, pack, unpack)
+import           Data.Text                 (Text)
 import           Data.Time.Clock           (UTCTime, getCurrentTime)
-import           System.IO                 (hPutStr, stderr, stdout)
 import           System.Process            (getProcessId)
 
 
@@ -43,7 +39,7 @@ data LogConfig = LogConfig { configLevel     :: LogLevel
                            , configName      :: String
                            }
 
--- logger with underlying monad m where logging will actually happen ex: IO
+-- logger state with underlying monad m where logging will actually happen ex: IO
 newtype LoggerT m a = LoggerT { runLoggerT :: ReaderT (LogState m) m a }
 
 instance Monad m => Functor (LoggerT m) where
@@ -68,17 +64,16 @@ class Monad m => LogVarProvider m where
     provideProcessId :: m Int
     provideThreadId :: m ThreadId
 
-
 -- HasLog where m is the monad with the logging state etc and n is the monad where underlying logging happens
-class (MonadTrans m, LogVarProvider n, Monad (m n)) => HasLog m n where
-    logState :: (m n) (LogState n)
-    withLogState :: (LogState n -> a) -> (m n) a
+class (Monad m, LogVarProvider n) => HasLog m n | m -> n where
+    logState :: m (LogState n)
+    runInLogging :: n a -> m a
+    withLogState :: (LogState n -> a) -> m a
     withLogState f = f <$> logState
-    withLog :: LogState n -> (m n) a -> n a
 
-instance LogVarProvider m => HasLog LoggerT m where
+instance (LogVarProvider m) => HasLog (LoggerT m) m where
     logState = LoggerT { runLoggerT = ask}
-    withLog s la = runReaderT (runLoggerT la) s
+    runInLogging = lift
 
 
 instance LogVarProvider IO where

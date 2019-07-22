@@ -7,6 +7,7 @@ import           Control.Exception.Base        (AsyncException (..),
                                                 onException)
 import           Control.Monad                 (forever)
 import           Control.Monad.IO.Class        (MonadIO, liftIO)
+import           Control.Monad.Trans.Reader
 import           Data.Text                     (Text)
 import           Data.Time.Clock               (getCurrentTime)
 import           Logging.Log4hs
@@ -30,7 +31,9 @@ childLogger chld c = untilKilled $ withLogging' ctx $ forever $ do
                            }
           untilKilled m = onException m (mapM_ (\(_,(_,f)) -> f) chld)
           withLogging' :: LogContext IO -> LoggerT IO a -> IO a
-          withLogging' = withLogging
+          withLogging' ctx la = do
+            s <- mkLogState ctx
+            runReaderT (runLoggerT la) s
 
 asyncAppender :: MonadIO m => [(String,m (LogAppender IO,LogAppenderFinish IO))] -> Int -> m (LogAppender m,LogAppenderFinish m)
 asyncAppender chld qsz = do
