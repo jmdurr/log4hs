@@ -1,14 +1,13 @@
 module Logging.Log4hs.Appender.RollingFile (rollingFileAppender,sizeBasedTriggeringPolicy,timeBasedTriggeringPolicy) where
 
 import           Codec.Compression.GZip  (compress)
-import           Control.Concurrent      (forkIO, threadDelay)
-import           Control.Concurrent.MVar (MVar, modifyMVar_, newMVar, withMVar)
+import           Control.Concurrent      (forkIO)
+import           Control.Concurrent.MVar (modifyMVar_, newMVar, withMVar)
 import           Control.Monad           (void, when)
 import           Control.Monad.IO.Class
 import           Data.Attoparsec.Text
 import qualified Data.ByteString.Lazy    as BL
-import           Data.IORef              (IORef, newIORef, readIORef,
-                                          writeIORef)
+import           Data.IORef              (newIORef, readIORef, writeIORef)
 import qualified Data.Text               as T
 import qualified Data.Text.Lazy          as LT
 import qualified Data.Text.Lazy.Builder  as TB
@@ -29,6 +28,7 @@ rollingFileAppender append buffer file fp flush layout policiesM = do
   policies <- sequence policiesM
   let md = if append then AppendMode else WriteMode in do
     h <- liftIO $ openFile file md
+    liftIO $ hSetBuffering h (if buffer then BlockBuffering (Just 128000) else NoBuffering)
     ioh <- liftIO $ newMVar (h,1)
     return (\m lvl msg args -> do
               t <- layout m lvl msg args
@@ -37,8 +37,9 @@ rollingFileAppender append buffer file fp flush layout policiesM = do
                   hClose h'
                   mapM_ snd policies
                   roll file fp' i md
-              liftIO $ withMVar ioh $ \(h',_) ->
+              liftIO $ withMVar ioh $ \(h',_) -> do
                 hPutStr h' (T.unpack t)
+                when flush (hFlush h)
 
           , liftIO $ withMVar ioh $ \(h',_) -> hClose h'
           )
@@ -83,7 +84,7 @@ timeBasedTriggeringPolicy intervalS = do
 
 sizeBasedTriggeringPolicy :: MonadIO m => Int -> FilePath -> m (TriggeringPolicy,TriggeringPolicyReset)
 sizeBasedTriggeringPolicy maxChars file = do
-  szref <- liftIO (withFile file ReadMode hFileSize >>= newIORef)
+  szref <- liftIO (withFile file ReadWriteMode hFileSize >>= newIORef)
   return
     (\t -> do
       sz <- fromIntegral <$> readIORef szref
@@ -97,7 +98,7 @@ data Token = TokenDate T.Text | TokenInc | TokenPerc | TokenText T.Text
 
 date :: Parser Token
 date = do
-  string (T.pack "%d{")
+  void $ string (T.pack "%d{")
   s <- manyTill anyChar (char '}')
   return $ TokenDate (T.pack s)
 

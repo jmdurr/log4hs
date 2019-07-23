@@ -1,4 +1,4 @@
-module Logging.Log4hs (defLoggerConfig,defLoggerCtx, mkLogState, logMsg, module Logging.Log4hs.Types) where
+module Logging.Log4hs (defLoggerConfig,defLoggerCtx, mkLogState, logMsg, logShow, module Logging.Log4hs.Types) where
 import           Control.Applicative             ((<|>))
 import           Control.Concurrent              (myThreadId)
 import           Control.Monad.IO.Class          (MonadIO)
@@ -52,7 +52,7 @@ getConfig nm = do
             | otherwise = Nothing
 
 
-logMsg :: HasLog m n => [String] -> LogLevel -> Text -> [(Text,Text)] -> m ()
+logMsg :: (HasLog m n) => [String] -> LogLevel -> Text -> [(Text,Text)] -> m ()
 logMsg nm lvl msg args = do
     c <- getConfig nm
     a <- flip getAppenders c . appenders <$> logState
@@ -71,4 +71,6 @@ logMsg nm lvl msg args = do
         (_,_)         -> return ()
     where dolog app = runInLogging $ mapM_ (\a -> a nm lvl msg args) app
 
+logShow :: (HasLog m n, Show s) => [String] -> LogLevel -> s -> m ()
+logShow nm l s = logMsg nm l (pack (show s)) []
 

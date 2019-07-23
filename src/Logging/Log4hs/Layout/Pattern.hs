@@ -13,7 +13,7 @@ import           Data.Time.Format       (defaultTimeLocale, formatTime)
 import           Logging.Log4hs.Types
 import           Text.Printf            (printf)
 
-data EncodeType = JSON | CRLF
+data EncodeType = JSON | CRLF deriving (Show)
 
 data HighlightColor = BLACK | BLUE | RED | GREEN | YELLOW | MAGENTA | CYAN | WHITE deriving (Show,Read,Eq)
 
@@ -29,9 +29,10 @@ data PatternFlag = LoggerName Int
                  | Percent
                  | Message Bool
                  | KeyLookup String
+                 deriving (Show)
 
-data PatternSegment = PatternSegmentText T.Text | PatternSegmentFlag PatternFlag
-newtype Pattern = Pattern [PatternSegment]
+data PatternSegment = PatternSegmentText T.Text | PatternSegmentFlag PatternFlag deriving (Show)
+newtype Pattern = Pattern [PatternSegment] deriving (Show)
 
 data PatternData m = PatternData { msg           :: T.Text
                                  , msgArgs       :: [(T.Text,T.Text)]
