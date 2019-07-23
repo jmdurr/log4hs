@@ -2,11 +2,9 @@ module Logging.Log4hs.TestLogger where
 
 import           Control.Concurrent              (myThreadId)
 import qualified Data.Text                       as T
-import           Data.Time.Clock
 import           Logging.Log4hs
 import           Logging.Log4hs.Appender.Console
 import           Logging.Log4hs.Layout.Pattern
-import           Test.Hspec.Core.Spec
 
 
 testContext :: LogContext IO

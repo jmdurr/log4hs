@@ -3,7 +3,7 @@ module Logging.Log4hs.Appender.Console (ConsoleAppenderTarget(..),consoleAppende
 import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Data.Text              (unpack)
 import           Logging.Log4hs.Types
-import           System.IO              (hPutStr, putStr, stderr, stdout)
+import           System.IO              (hPutStr, putStr, stderr)
 
 data ConsoleAppenderTarget = SYSTEM_OUT | SYSTEM_ERR
 consoleAppender :: MonadIO m => ConsoleAppenderTarget -> Layout m -> m (LogAppender m,LogAppenderFinish m)

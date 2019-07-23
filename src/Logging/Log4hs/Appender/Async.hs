@@ -4,7 +4,6 @@ import           Control.Concurrent            (forkIO, killThread, myThreadId)
 import           Control.Concurrent.STM        (atomically)
 import           Control.Concurrent.STM.TBChan
 import           Control.Exception.Base        (onException)
-import           Control.Monad                 (forever)
 import           Control.Monad.IO.Class        (MonadIO, liftIO)
 import           Control.Monad.Trans.Reader
 import           Data.Text                     (Text)
