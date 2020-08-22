@@ -1,0 +1,107 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: ab2cbf02f0ca195951f7328746353cf2b141ca72ca92d3147aa76bbad419e8bb
+
+name:           log4hs
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/jmdurr/log4hs#readme>
+homepage:       https://github.com/jmdurr/log4hs#readme
+bug-reports:    https://github.com/jmdurr/log4hs/issues
+author:         Jonathan Durr
+maintainer:     jmdurr@gmail.com
+copyright:      2019 Jonathan Durr All Rights Reserved
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/jmdurr/log4hs
+
+library
+  exposed-modules:
+      Logging.Log4hs
+      Logging.Log4hs.Appender.Console
+      Logging.Log4hs.Appender.Async
+      Logging.Log4hs.Layout.Pattern
+      Logging.Log4hs.TH.Log4hs
+      Logging.Log4hs.Appender.RollingFile
+      Logging.Log4hs.Appender.File
+      System.Process
+  other-modules:
+      Logging.Log4hs.Types
+      Paths_log4hs
+  hs-source-dirs:
+      src/
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
+  build-depends:
+      attoparsec
+    , base >=4.7 && <5
+    , bytestring
+    , directory
+    , filepath
+    , mtl
+    , split
+    , stm
+    , stm-chans
+    , template-haskell
+    , text
+    , time
+    , transformers
+    , zlib
+  if os(windows)
+    build-depends:
+        Win32
+  else
+    build-depends:
+        unix
+  if os(windows)
+    hs-source-dirs:
+        windows/
+  else
+    hs-source-dirs:
+        unix/
+  default-language: Haskell2010
+
+test-suite log4h-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Logging.Log4hs.Layout.PatternSpec
+      Logging.Log4hs.TestLogger
+      Paths_log4hs
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      attoparsec
+    , base >=4.7 && <5
+    , bytestring
+    , directory
+    , filepath
+    , hspec
+    , hspec-core
+    , log4hs
+    , mtl
+    , split
+    , stm
+    , stm-chans
+    , template-haskell
+    , text
+    , time
+    , transformers
+    , zlib
+  if os(windows)
+    build-depends:
+        Win32
+  else
+    build-depends:
+        unix
+  default-language: Haskell2010
