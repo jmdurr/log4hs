@@ -28,7 +28,7 @@ childLogger chld c = untilKilled $ withLogging' ctx loop
                            ,ctxThreadId = myThreadId
                            }
           untilKilled m = onException m (mapM_ (\(_,(_,f)) -> f) chld)
-          withLogging' :: LogContext IO -> LoggerT IO a -> IO a
+          withLogging' :: LogContext IO -> LoggerT IO IO a -> IO a
           withLogging' ctx' la = do
             s <- mkLogState ctx'
             runReaderT (runLoggerT la) s

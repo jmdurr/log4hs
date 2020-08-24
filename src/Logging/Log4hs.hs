@@ -1,4 +1,4 @@
-module Logging.Log4hs (defLoggerConfig,defLoggerCtx, mkLogState, logMsg, logShow, module Logging.Log4hs.Types) where
+module Logging.Log4hs (defLoggerConfig,defLoggerCtx, mkLogState, logMsg, logShow, logIO, module Logging.Log4hs.Types) where
 import           Control.Applicative             ((<|>))
 import           Control.Concurrent              (myThreadId)
 import           Control.Monad.IO.Class          (MonadIO)
@@ -36,7 +36,7 @@ mkLogState ctx = do
 getAppenders :: [(String,(LogAppender n, LogAppenderFinish n))] -> LogConfig -> [LogAppender n]
 getAppenders apps cfg = mapMaybe (`lookup` map (\(n,(a,_)) -> (n,a)) apps) (configAppenders cfg)
 
-getConfig :: (Monad m, HasLog m n) => [String] -> m LogConfig
+getConfig :: (Monad m, HasLog m l) => [String] -> m LogConfig
 getConfig [] = ctxConfigs . context <$> logState
 getConfig nm = do
     ctx <- context <$> logState
@@ -52,7 +52,7 @@ getConfig nm = do
             | otherwise = Nothing
 
 
-logMsg :: (HasLog m n) => [String] -> LogLevel -> Text -> [(Text,Text)] -> m ()
+logMsg :: (HasLog m l) => [String] -> LogLevel -> Text -> [(Text,Text)] -> m ()
 logMsg nm lvl msg args = do
     c <- getConfig nm
     a <- flip getAppenders c . appenders <$> logState
@@ -69,8 +69,11 @@ logMsg nm lvl msg args = do
         (DEBUG,DEBUG) -> dolog a
         (TRACE,_)     -> dolog a
         (_,_)         -> return ()
-    where dolog app = runInLogging $ mapM_ (\a -> a nm lvl msg args) app
+    where dolog app = subLog $ mapM_ (\a -> a nm lvl msg args) app
 
-logShow :: (HasLog m n, Show s) => [String] -> LogLevel -> s -> m ()
+logShow :: (HasLog m l, Show s) => [String] -> LogLevel -> s -> m ()
 logShow nm l s = logMsg nm l (pack (show s)) []
+
+logIO :: LogState IO -> LoggerT IO IO a -> IO a
+logIO st act = runReaderT (runLoggerT act) st
 

@@ -7,7 +7,8 @@ module Logging.Log4hs.Types where
 import           Control.Concurrent        (ThreadId, myThreadId)
 import           Control.Monad.IO.Class    (MonadIO, liftIO)
 import           Control.Monad.Reader
-import           Control.Monad.Trans.Class (MonadTrans, lift)
+import Control.Monad.Reader.Class (ask)
+import           Control.Monad.Trans.Class (lift)
 import           Data.Text                 (Text)
 import           Data.Time.Clock           (UTCTime, getCurrentTime)
 import           System.Process            (getProcessId)
@@ -40,43 +41,44 @@ data LogConfig = LogConfig { configLevel     :: LogLevel
                            }
 
 -- logger state with underlying monad m where logging will actually happen ex: IO
-newtype LoggerT m a = LoggerT { runLoggerT :: ReaderT (LogState m) m a }
+newtype LoggerT n m a = LoggerT { runLoggerT :: ReaderT (LogState m) n a }
 
-instance Monad m => Functor (LoggerT m) where
+instance (Monad n, Monad m) => Functor (LoggerT n m) where
     fmap ab fa = LoggerT { runLoggerT = ab <$> runLoggerT fa}
 
-instance Monad m => Applicative (LoggerT m) where
+instance (Monad n, Monad m) => Applicative (LoggerT n m) where
     pure a = LoggerT { runLoggerT = pure a}
     (<*>) fab fa = LoggerT { runLoggerT = runLoggerT fa >>= \a -> runLoggerT fab >>= \ab -> return $ ab a}
 
-instance Monad m => Monad (LoggerT m) where
+instance (Monad n, Monad m) => Monad (LoggerT n m) where
     return = pure
     (>>=) ma amb = LoggerT { runLoggerT = runLoggerT ma >>= \a -> runLoggerT (amb a)}
 
-instance MonadIO m => MonadIO (LoggerT m) where
-    liftIO ioa = LoggerT { runLoggerT = lift . liftIO $ ioa}
-
-instance MonadTrans LoggerT where
-    lift ma = LoggerT { runLoggerT = lift ma}
+instance (MonadIO n, Monad m) => MonadIO (LoggerT n m) where
+    liftIO ioa = LoggerT { runLoggerT = liftIO $ ioa}
 
 class Monad m => LogVarProvider m where
     provideTime :: m UTCTime
     provideProcessId :: m Int
     provideThreadId :: m ThreadId
-
--- HasLog where m is the monad with the logging state etc and n is the monad where underlying logging happens
-class (Monad m, LogVarProvider n) => HasLog m n | m -> n where
-    logState :: m (LogState n)
-    runInLogging :: n a -> m a
-    withLogState :: (LogState n -> a) -> m a
-    withLogState f = f <$> logState
-
-instance (LogVarProvider m) => HasLog (LoggerT m) m where
-    logState = LoggerT { runLoggerT = ask}
-    runInLogging = lift
-
-
+    
 instance LogVarProvider IO where
     provideTime = getCurrentTime
     provideProcessId = getProcessId
     provideThreadId = myThreadId
+
+instance LogVarProvider (LoggerT IO IO) where
+    provideTime = LoggerT { runLoggerT = liftIO getCurrentTime }
+    provideProcessId = LoggerT { runLoggerT = liftIO getProcessId}
+    provideThreadId = LoggerT { runLoggerT = liftIO myThreadId}
+
+
+class (Monad m, Monad n) => HasLog m n | m -> n where
+    logState :: m (LogState n)
+    subLog :: n a -> m a
+
+instance HasLog (LoggerT IO IO) IO where
+    logState = LoggerT ask
+    subLog s = LoggerT { runLoggerT = lift s}
+
+
