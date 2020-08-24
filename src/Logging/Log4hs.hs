@@ -74,6 +74,6 @@ logMsg nm lvl msg args = do
 logShow :: (HasLog m l, Show s) => [String] -> LogLevel -> s -> m ()
 logShow nm l s = logMsg nm l (pack (show s)) []
 
-logIO :: LogState IO -> LoggerT IO IO a -> IO a
+logIO :: LogState IO -> LoggerT IO IO () -> IO ()
 logIO st act = runReaderT (runLoggerT act) st
 
