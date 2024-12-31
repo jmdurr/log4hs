@@ -5,7 +5,7 @@
 module Logging.Log4hs.Types where
 
 import Control.Concurrent (ThreadId, myThreadId)
-import Control.Monad.Fail (MonadFail (..))
+import Control.Monad.Fail (MonadFail (..),fail)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader
 import Control.Monad.Reader.Class (ask)
@@ -63,7 +63,7 @@ class Monad m => LogVarProvider m where
   provideThreadId :: m ThreadId
 
 instance (MonadFail m, MonadFail n) => MonadFail (LoggerT m n) where
-  fail m = LoggerT {runLoggerT = Control.Monad.Reader.fail m}
+  fail m = LoggerT {runLoggerT = fail m}
 
 instance LogVarProvider IO where
   provideTime = getCurrentTime

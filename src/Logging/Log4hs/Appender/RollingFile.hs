@@ -46,7 +46,7 @@ rollingFileAppender append buffer file fp flush layout policiesM = do
   where fp' = parseOnly filePattern (T.pack fp)
 
 
-roll :: MonadIO m => FilePath -> Either String (UTCTime -> Int -> String) -> Int -> IOMode -> m (Handle,Int)
+roll :: (MonadFail m, MonadIO m) => FilePath -> Either String (UTCTime -> Int -> String) -> Int -> IOMode -> m (Handle,Int)
 roll f (Right nf) i md = do
   t <- liftIO getCurrentTime
   let fp = replaceFileName f (nf t i)
