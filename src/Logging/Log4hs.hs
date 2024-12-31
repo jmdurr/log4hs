@@ -1,4 +1,4 @@
-module Logging.Log4hs (defLoggerConfig, defLoggerCtx, mkLogState, logMsg, logShow, logIO, logLift, module Logging.Log4hs.Types) where
+module Logging.Log4hs (withLogging,defLoggerConfig, defLoggerCtx, mkLogState, logMsg, logShow, logIO, logLift, module Logging.Log4hs.Types) where
 
 import Control.Applicative ((<|>))
 import Control.Concurrent (myThreadId)
@@ -81,6 +81,11 @@ logShow nm l s = logMsg nm l (pack (show s)) []
 
 logIO :: LogState IO -> LoggerT IO IO () -> IO ()
 logIO st act = runReaderT (runLoggerT act) st
+
+withLogging :: HasLog m n => LoggerT m n a -> m a
+withLogging act = do 
+  st <- logState
+  runReaderT (runLoggerT act) st
 
 logLift :: Monad m => m a -> LoggerT m n a
 logLift n =
