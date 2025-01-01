@@ -82,9 +82,8 @@ logShow nm l s = logMsg nm l (pack (show s)) []
 logIO :: LogState IO -> LoggerT IO IO a -> IO a
 logIO st act = runReaderT (runLoggerT act) st
 
-withLogging :: HasLog m n => LoggerT m n a -> m a
-withLogging act = do 
-  st <- logState
+withLogging :: LogState s ->  LoggerT m s a -> m a
+withLogging st act =
   runReaderT (runLoggerT act) st
 
 logLift :: Monad m => m a -> LoggerT m n a
